@@ -1,0 +1,154 @@
+name: 'Terraform Steps'
+description: 'Run Terraform plan from PRs and Terraform plan/apply from `main`'
+inputs:
+  client-id:
+    description: 'The service principal Client ID to use'
+    required: true
+  client-secret:
+    description: 'The service principal Client Secret to use. Please load it from a GitHub secret.'
+    required: true
+  default-subscription-id:  
+    description: 'The default Subscription ID to use. The service principal must have access.'
+    required: true
+  tenant-id:  
+    description: 'The Azure Active Directory Tenant ID to use.'
+    required: true
+  working-directory:  
+    description: 'The directory where the Terraform configuration is located.'
+    required: true
+    default: .
+  plan-title:  
+    description: 'The title of the comment that GitHub will add after a `terraform plan`.'
+    required: true
+  terraform-version:
+    description: 'The Terraform version to use'
+    required: true
+    default: '1.1.9'
+  GITHUB_TOKEN: 
+    description: 'The secrets.GITHUB_TOKEN so that the action can create a comment on the PR'
+    required: true
+
+branding:
+  icon: 'coffee'
+
+runs:
+  using: "composite"
+
+  steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: false
+      
+    # Checks that all Terraform configuration files adhere to a canonical format
+    - name: Terraform Format
+      id: fmt
+      run: terraform fmt -check
+      continue-on-error: true
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      env:
+        ARM_CLIENT_ID: ${{ inputs.client-id }}
+        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
+        ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
+        ARM_TENANT_ID: ${{ inputs.tenant-id }} 
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+
+    # Generates an execution plan for Terraform
+    - name: Terraform Plan
+      id: plan
+      run: |
+        terraform plan -input=false -no-color -out tf.plan
+      env:
+        ARM_CLIENT_ID: ${{ inputs.client-id }}
+        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
+        ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
+        ARM_TENANT_ID: ${{ inputs.tenant-id }}
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+
+    - name: Terraform Show
+      id: show
+      run: terraform show -no-color tf.plan 2>&1 > /tmp/plan.txt
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ARM_CLIENT_ID: ${{ inputs.client-id }}
+        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
+        ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
+        ARM_TENANT_ID: ${{ inputs.tenant-id }}
+      shell: bash
+
+    - uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      with:
+        github-token: ${{ inputs.GITHUB_TOKEN }}
+        script: |
+          const fs = require("fs");
+          const plan = fs.readFileSync("/tmp/plan.txt", "utf8");
+          const maxGitHubBodyCharacters = 65536;
+          
+          function chunkSubstr(str, size) {
+            const numChunks = Math.ceil(str.length / size)
+            const chunks = new Array(numChunks)
+            for (let i = 0, o = 0; i < numChunks; ++i, o += size) {
+              chunks[i] = str.substr(o, size)
+            }
+            return chunks
+          }
+        
+          // Split the Terraform plan into chunks if it's too big and can't fit into the GitHub Action
+          var plans = chunkSubstr(plan, maxGitHubBodyCharacters); 
+          for (let i = 0; i < plans.length; i++) {
+            const output = `### ${{ inputs.plan-title }} Part # ${i + 1}
+            #### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${plans[i]}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ inputs.working-directory }}\`, Workflow: \`${{ github.workflow }}\`*`;   
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+          }
+          
+      # On push to main, build or change infrastructure according to Terraform configuration files
+      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform apply -input=false tf.plan
+      env:
+        ARM_CLIENT_ID: ${{ inputs.client-id }}
+        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
+        ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
+        ARM_TENANT_ID: ${{ inputs.tenant-id }}
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
