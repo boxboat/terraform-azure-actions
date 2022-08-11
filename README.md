@@ -12,7 +12,7 @@ jobs:
     environment: canary # if you want to use secrets tied to an environment, define an environment in your repository (e.g. 'canary')
     steps:
       - uses: actions/checkout@v3
-      - uses: YourCoolGitHubOrg/az2-terraform-actions@v0.2.0
+      - uses: boxboat/az2-terraform-actions@v0.2.0
         with:
           client-id: '<< service principal client id >>'
           client-secret: ${{ secrets.CLIENT_SECRET }}
