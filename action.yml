@@ -1,51 +1,47 @@
-name: 'Terraform Steps'
-description: 'Run Terraform plan from PRs and Terraform plan/apply from `main`'
+name: "Terraform Steps"
+description: "Run Terraform plan from PRs and Terraform plan/apply from `main`"
 inputs:
   client-id:
-    description: 'The service principal Client ID to use'
+    description: "The service principal Client ID to use"
     required: true
   client-secret:
-    description: 'The service principal Client Secret to use. Please load it from a GitHub secret.'
+    description: "The service principal Client Secret to use. Please load it from a GitHub secret."
     required: true
-  default-subscription-id:  
-    description: 'The default Subscription ID to use. The service principal must have access.'
+  default-subscription-id:
+    description: "The default Subscription ID to use. The service principal must have access."
     required: true
-  tenant-id:  
-    description: 'The Azure Active Directory Tenant ID to use.'
+  tenant-id:
+    description: "The Azure Active Directory Tenant ID to use."
     required: true
-  working-directory:  
-    description: 'The directory where the Terraform configuration is located.'
+  working-directory:
+    description: "The directory where the Terraform configuration is located."
     required: true
     default: .
-  plan-title:  
-    description: 'The title of the comment that GitHub will add after a `terraform plan`.'
+  plan-title:
+    description: "The title of the comment that GitHub will add after a `terraform plan`."
     required: true
   terraform-version:
-    description: 'The Terraform version to use'
+    description: "The Terraform version to use"
     required: true
-    default: '1.1.9'
-  GITHUB_TOKEN: 
-    description: 'The secrets.GITHUB_TOKEN so that the action can create a comment on the PR'
+    default: "1.1.9"
+  GITHUB_TOKEN:
+    description: "The secrets.GITHUB_TOKEN so that the action can create a comment on the PR"
     required: true
 
 branding:
-  icon: 'coffee'
+  icon: "coffee"
 
 runs:
   using: "composite"
 
   steps:
-    # Checkout the repository to the GitHub Actions runner
-    - name: Checkout
-      uses: actions/checkout@v3
-
     # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
       with:
         terraform_version: ${{ inputs.terraform-version }}
         terraform_wrapper: false
-      
+
     # Checks that all Terraform configuration files adhere to a canonical format
     - name: Terraform Format
       id: fmt
@@ -62,7 +58,7 @@ runs:
         ARM_CLIENT_ID: ${{ inputs.client-id }}
         ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
         ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
-        ARM_TENANT_ID: ${{ inputs.tenant-id }} 
+        ARM_TENANT_ID: ${{ inputs.tenant-id }}
       working-directory: ${{ inputs.working-directory }}
       shell: bash
 
@@ -104,7 +100,7 @@ runs:
           const fs = require("fs");
           const plan = fs.readFileSync("/tmp/plan.txt", "utf8");
           const maxGitHubBodyCharacters = 65536;
-          
+
           function chunkSubstr(str, size) {
             const numChunks = Math.ceil(str.length / size)
             const chunks = new Array(numChunks)
@@ -113,7 +109,7 @@ runs:
             }
             return chunks
           }
-        
+
           // Split the Terraform plan into chunks if it's too big and can't fit into the GitHub Action
           var plans = chunkSubstr(plan, maxGitHubBodyCharacters); 
           for (let i = 0; i < plans.length; i++) {
@@ -139,7 +135,7 @@ runs:
               body: output
             })
           }
-          
+
       # On push to main, build or change infrastructure according to Terraform configuration files
       # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
     - name: Terraform Apply
