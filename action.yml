@@ -4,9 +4,6 @@ inputs:
   client-id:
     description: 'The service principal Client ID to use'
     required: true
-  client-secret:
-    description: 'The service principal Client Secret to use. Please load it from a GitHub secret.'
-    required: true
   default-subscription-id:  
     description: 'The default Subscription ID to use. The service principal must have access.'
     required: true
@@ -60,9 +57,9 @@ runs:
       run: terraform init
       env:
         ARM_CLIENT_ID: ${{ inputs.client-id }}
-        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
         ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
-        ARM_TENANT_ID: ${{ inputs.tenant-id }} 
+        ARM_TENANT_ID: ${{ inputs.tenant-id }}
+        ARM_USE_OIDC: true
       working-directory: ${{ inputs.working-directory }}
       shell: bash
 
@@ -79,9 +76,9 @@ runs:
         terraform plan -input=false -no-color -out tf.plan
       env:
         ARM_CLIENT_ID: ${{ inputs.client-id }}
-        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
         ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
         ARM_TENANT_ID: ${{ inputs.tenant-id }}
+        ARM_USE_OIDC: true
       working-directory: ${{ inputs.working-directory }}
       shell: bash
 
@@ -91,9 +88,9 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         ARM_CLIENT_ID: ${{ inputs.client-id }}
-        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
         ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
         ARM_TENANT_ID: ${{ inputs.tenant-id }}
+        ARM_USE_OIDC: true
       shell: bash
 
     - uses: actions/github-script@v6
@@ -147,8 +144,8 @@ runs:
       run: terraform apply -input=false tf.plan
       env:
         ARM_CLIENT_ID: ${{ inputs.client-id }}
-        ARM_CLIENT_SECRET: ${{ inputs.client-secret }}
         ARM_SUBSCRIPTION_ID: ${{ inputs.default-subscription-id }}
         ARM_TENANT_ID: ${{ inputs.tenant-id }}
+        ARM_USE_OIDC: true
       working-directory: ${{ inputs.working-directory }}
       shell: bash
